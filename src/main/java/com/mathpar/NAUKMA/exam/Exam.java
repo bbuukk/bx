@@ -28,7 +28,7 @@ public class Exam {
 
         if (rank == MASTER_NODE) {
             double[][] matrix = generateMatrix(ord, ord + 1);
-            printMatrix(matrix);
+            System.out.println(matrixToString(matrix));
 
             double[][][] splitMatrix = splitMatrix(matrix, NP);
             part = splitMatrix[0];
@@ -40,40 +40,41 @@ public class Exam {
             part = (double[][]) recvObject(MASTER_NODE, MESSAGE_TAG);
         }
 
-        int pivotRowIdx = findIdxPivotRow(part, activeColumn);
-        localPivotRow = part[pivotRowIdx];
+        for (int i = 0; i < ord; i++) {
 
-        ///
+            if (rank == MASTER_NODE) {
+                System.out.println("pivotRow is = \n" + rowToString(globalPivotRow));
+            }
+            System.out.println("i = " + i + ", rank = " + rank + ", part:\n" + matrixToString(part));
 
-        double[] localPivotRows = null;
-        if (rank == MASTER_NODE) {
-            localPivotRows = new double[(ord + 1) * NP];
+            int pivotRowIdx = findIdxPivotRow(part, activeColumn);
+
+            localPivotRow = part[pivotRowIdx];
+
+            double[] localPivotRows = null;
+            if (rank == MASTER_NODE) {
+                localPivotRows = new double[(ord + 1) * NP];
+            }
+
+            MPI.COMM_WORLD.gather(localPivotRow, localPivotRow.length, MPI.DOUBLE,
+                    localPivotRows, localPivotRow.length,
+                    MPI.DOUBLE, MASTER_NODE);
+
+            MPI.COMM_WORLD.barrier();
+            if (rank == MASTER_NODE) {
+                globalPivotRow = findGlobalPivotRow(localPivotRows);
+            }
+
+            MPI.COMM_WORLD.bcast(globalPivotRow, ord + 1, MPI.DOUBLE, MASTER_NODE);
+
+            forwardElimination(part, globalPivotRow, activeColumn);
+
+            activeColumn++;
+
         }
-
-        MPI.COMM_WORLD.gather(localPivotRow, localPivotRow.length, MPI.DOUBLE, localPivotRows, localPivotRow.length,
-                MPI.DOUBLE, MASTER_NODE);
-
-        if (rank == MASTER_NODE) {
-            globalPivotRow = findGlobalPivotRow(localPivotRows);
-        }
-
-        MPI.COMM_WORLD.bcast(globalPivotRow, ord + 1, MPI.DOUBLE, MASTER_NODE);
-
-        System.out.println("Rank: " + rank + "\n" + Arrays.toString(globalPivotRow));
-
-        // forwardElimination(part, pivotRow, activeColumn);
 
         MPI.Finalize();
     }
-
-    // public static int[] getLengths(int rank) {
-    // int[] lens = new int[len];
-    // for (int i = 0; i < lens.length; i++) {
-    // lens[i] = rank * len + i;
-    // }
-
-    // return lens;
-    // }
 
     public static double[] findGlobalPivotRow(double[] localPivotRows) {
         double[] globalPivotRow = new double[ord + 1];
@@ -120,22 +121,25 @@ public class Exam {
         matrix[pivotRowIdx] = temp;
     }
 
-    public static void printMatrix(double[][] matrix) {
+    public static String matrixToString(double[][] matrix) {
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < matrix.length; i++) {
             for (int j = 0; j < matrix[i].length; j++) {
-                System.out.printf("%.2f ", matrix[i][j]);
+                sb.append(String.format("%.2f ", matrix[i][j]));
             }
-            System.out.println();
+            sb.append("\n");
         }
-        // System.out.println("\n");
-        System.out.println();
+        sb.append("\n");
+        return sb.toString();
     }
 
-    public static void printRow(double[] row) {
+    public static String rowToString(double[] row) {
+        StringBuilder sb = new StringBuilder();
         for (int j = 0; j < row.length; j++) {
-            System.out.printf("%.2f ", row[j]);
+            sb.append(String.format("%.2f ", row[j]));
         }
-        System.out.println('\n');
+        sb.append("\n");
+        return sb.toString();
     }
 
     public static double[][] generateMatrix(int rows, int cols) {
